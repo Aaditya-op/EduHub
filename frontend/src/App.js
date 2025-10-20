@@ -11,43 +11,191 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import "@/App.css";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
-axios.defaults.baseURL = API;
-axios.interceptors.response.use(r=>r, err=>{ const msg = err?.response?.data?.detail || err?.response?.data || err.message || "Something went wrong"; toast.error(msg); return Promise.reject(err); });
+// ------------------------ CONFIG ------------------------
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:5000";
+axios.defaults.baseURL = `${BACKEND_URL}/api`;
 
-function setAuth(token) { if (token) { axios.defaults.headers.common["Authorization"] = `Bearer ${token}`; localStorage.setItem("token", token); } else { delete axios.defaults.headers.common["Authorization"]; localStorage.removeItem("token"); } }
-function useAuth() { const [user, setUser] = useState(null); useEffect(() => { const t = localStorage.getItem("token"); if (t) { setAuth(t); axios.get(`/auth/me`).then(r => setUser(r.data)).catch(() => setAuth(null)); } }, []); return { user, setUser }; }
-function ThemeToggle() { const [dark, setDark] = useState(false); useEffect(() => { document.documentElement.classList.toggle("dark", dark); }, [dark]); return (<div className="flex items-center gap-2"><Switch data-testid="theme-toggle" checked={dark} onCheckedChange={setDark} /><span className="text-sm">{dark ? "Dark" : "Light"}</span></div>); }
+// Axios global error handling
+axios.interceptors.response.use(
+  (response) => response,
+  (err) => {
+    const msg = err?.response?.data?.detail || err?.response?.data || err.message || "Something went wrong";
+    toast.error(msg);
+    return Promise.reject(err);
+  }
+);
 
-function Nav({ user, onLogout }) { return (<div className="sticky top-0 z-20 backdrop-blur bg-background/70 border-b"><div className="max-w-6xl mx-auto flex items-center justify-between py-3 px-4"><Link data-testid="brand" to="/" className="font-semibold tracking-tight">EduPulse</Link><div className="flex items-center gap-4"><Link data-testid="nav-announcements" to="/announcements" className="text-sm">Announcements</Link><Link data-testid="nav-doubts" to="/doubts" className="text-sm">Doubt Board</Link><Link data-testid="nav-quizzes" to="/quizzes" className="text-sm">Quizzes</Link>{user?.role==='student' && <Link data-testid="nav-stats" to="/quizzes-stats" className="text-sm">Stats</Link>}<Link data-testid="nav-chat" to="/chat" className="text-sm">Chat</Link><ThemeToggle />{user ? (<div className="flex items-center gap-2"><span className="text-sm">{user.name} · {user.role}</span><Button data-testid="logout-button" variant="secondary" onClick={onLogout}>Logout</Button></div>) : null}</div></div></div>); }
+// ------------------------ AUTH ------------------------
+export function setAuth(token) {
+  if (token) {
+    axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+    localStorage.setItem("token", token);
+  } else {
+    delete axios.defaults.headers.common["Authorization"];
+    localStorage.removeItem("token");
+  }
+}
 
-const SUBJECTS = ["Math","Science","English","Social Studies"]; const CLASSES = Array.from({length:12}, (_,i)=> i+1);
+export function useAuth() {
+  const [user, setUser] = useState(null);
 
-function Login({ setUser }) { const [email, setEmail] = useState("student@school.com"); const [password, setPassword] = useState("student123"); const [classPick, setClassPick] = useState(""); const submit = async (e) => { e.preventDefault(); const fd = new URLSearchParams(); fd.append("username", email); fd.append("password", password); const r = await axios.post(`/auth/login`, fd, { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }}); setAuth(r.data.access_token); let me = (await axios.get(`/auth/me`)).data; if(me.role==='student' && classPick){ await axios.patch(`/users/me`, {class_grade: Number(classPick)}); me = (await axios.get(`/auth/me`)).data; } setUser(me); toast.success("Logged in"); }; return (<Card className="max-w-md mx-auto mt-10"><CardHeader><CardTitle>Welcome to EduPulse</CardTitle></CardHeader><CardContent><form data-testid="login-form" onSubmit={submit} className="space-y-4"><div><Label htmlFor="email">Email</Label><Input data-testid="login-email" id="email" value={email} onChange={(e)=>setEmail(e.target.value)} /></div><div><Label htmlFor="password">Password</Label><Input data-testid="login-password" id="password" type="password" value={password} onChange={(e)=>setPassword(e.target.value)} /></div><div className="grid grid-cols-2 gap-2 items-end"><div><Label>Student Class (optional)</Label><Select value={classPick} onValueChange={setClassPick}><SelectTrigger data-testid="login-class"><SelectValue placeholder="Select class" /></SelectTrigger><SelectContent>{CLASSES.map(c=> <SelectItem key={c} value={String(c)}>Class {c}</SelectItem>)}</SelectContent></Select></div><div className="text-xs text-muted-foreground">If student, select class to personalize</div></div><Button data-testid="login-submit-button" className="w-full" type="submit">Login</Button></form><div className="text-xs text-muted-foreground mt-4">Seed: student@school.com/student123 · teacher@school.com/teacher123 · admin@school.com/admin123</div></CardContent></Card>); }
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      setAuth(token);
+      axios.get("/auth/me").then((res) => setUser(res.data)).catch(() => setAuth(null));
+    }
+  }, []);
 
-function Quizzes({ user }) { const [items, setItems] = useState([]); const [query, setQuery] = useState(""); const [subject, setSubject] = useState(""); const [klass, setKlass] = useState(""); const [page, setPage] = useState(1); const pageSize = 10; const navigate = useNavigate(); const load = async ()=>{ const params = new URLSearchParams(); if(subject) params.append('subject', subject); if(klass) params.append('class_grade', klass); params.append('page', String(page)); params.append('page_size', String(pageSize)); const r = await axios.get(`/quizzes?${params.toString()}`); setItems(r.data); }; useEffect(()=>{ load(); },[subject, klass, page]); useEffect(()=>{ load(); },[]); const filtered = items.filter(q=> q.title.toLowerCase().includes(query.toLowerCase())); const del = async (id)=>{ if(!window.confirm('Delete quiz?')) return; await axios.delete(`/quizzes/${id}`); toast.success('Deleted'); load(); }; const approve = async (id)=>{ await axios.post(`/quizzes/${id}/approve`); toast.success('Approved'); load(); }; return (<div className="max-w-6xl mx-auto p-6 space-y-4"><div className="grid sm:grid-cols-5 gap-3"><Input data-testid="quiz-search" placeholder="Search" value={query} onChange={(e)=>setQuery(e.target.value)} /><Select value={subject} onValueChange={setSubject}><SelectTrigger data-testid="filter-subject"><SelectValue placeholder="Subject" /></SelectTrigger><SelectContent>{SUBJECTS.map(s=> <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select><Select value={klass} onValueChange={setKlass}><SelectTrigger data-testid="filter-class"><SelectValue placeholder="Class" /></SelectTrigger><SelectContent>{CLASSES.map(c=> <SelectItem key={c} value={String(c)}>Class {c}</SelectItem>)}</SelectContent></Select><Button data-testid="clear-filters" variant="secondary" onClick={()=>{setSubject(""); setKlass(""); setPage(1);}}>Clear</Button>{(user?.role==='teacher'||user?.role==='admin') && <CreateQuiz onCreated={()=>{setPage(1); load();}} />}</div><div className="grid gap-4 sm:grid-cols-2">{filtered.map(q=> (<Card key={q.id}><CardHeader><CardTitle>{q.title}</CardTitle></CardHeader><CardContent className="flex items-center justify-between gap-3"><div className="text-sm text-muted-foreground">Class {q.class_grade} · {q.subject} · {q.topic}</div><div className="flex items-center gap-2"><span className={`px-2 py-1 rounded-full text-xs ${q.approved? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200':'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-200'}`}>{q.approved? 'Approved':'Pending'}</span><Button data-testid={`open-${q.id}`} disabled={user?.role==='student' && !q.approved} onClick={()=>navigate(`/quizzes/${q.id}`)}>Open</Button>{user?.role==='admin' && !q.approved && <Button data-testid={`approve-${q.id}`} onClick={()=>approve(q.id)}>Approve</Button>}{user?.role==='admin' && <Button data-testid={`delete-${q.id}`} variant="destructive" onClick={()=>del(q.id)}>Delete</Button>}</div></CardContent></Card>))}</div><div className="flex justify-between items-center"><Button data-testid="page-prev" variant="secondary" onClick={()=> setPage(p=> Math.max(1, p-1))}>Prev</Button><div className="text-sm">Page {page}</div><Button data-testid="page-next" variant="secondary" onClick={()=> setPage(p=> p+1)}>Next</Button></div></div>); }
+  return { user, setUser };
+}
 
-function CreateQuiz({ onCreated }) { const [open, setOpen] = useState(false); const [title, setTitle] = useState(""); const [subject, setSubject] = useState(""); const [klass, setKlass] = useState(""); const [topic, setTopic] = useState(""); const [questions, setQuestions] = useState([]); const addQ = ()=> setQuestions(q=> [...q, {prompt:"", options:["","","",""], answer_index:0, topic: topic || "General"}]); const setQ = (i, patch)=> setQuestions(q=> q.map((it,idx)=> idx===i? {...it, ...patch}: it)); const setOpt = (i, j, val)=> setQuestions(q=> q.map((it,idx)=> idx===i? {...it, options: it.options.map((o,k)=> k===j? val: o)}: it)); const submit = async ()=>{ if(!title || !subject || !klass || !topic) return toast.error('Fill all fields'); if(questions.length < 10) return toast.error('At least 10 questions'); const body = { title, subject, class_grade: Number(klass), topic, questions }; await axios.post(`/quizzes`, body); toast.success('Quiz created (pending approval)'); setOpen(false); setTitle(""); setSubject(""); setKlass(""); setTopic(""); setQuestions([]); onCreated?.(); }; return (<div className="flex items-center">{!open ? (<Button data-testid="create-quiz-open" onClick={()=>setOpen(true)}>Create Quiz</Button>) : (<Card className="sm:col-span-5"><CardHeader><CardTitle>Create Quiz</CardTitle></CardHeader><CardContent className="space-y-4"><div className="grid sm:grid-cols-3 gap-3"><Input data-testid="cq-title" placeholder="Title" value={title} onChange={(e)=>setTitle(e.target.value)} /><Select value={subject} onValueChange={setSubject}><SelectTrigger data-testid="cq-subject"><SelectValue placeholder="Subject" /></SelectTrigger><SelectContent>{SUBJECTS.map(s=> <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select><Select value={klass} onValueChange={setKlass}><SelectTrigger data-testid="cq-class"><SelectValue placeholder="Class" /></SelectTrigger><SelectContent>{CLASSES.map(c=> <SelectItem key={c} value={String(c)}>Class {c}</SelectItem>)}</SelectContent></Select></div><Input data-testid="cq-topic" placeholder="Topic" value={topic} onChange={(e)=>setTopic(e.target.value)} /><div className="space-y-2"><div className="flex justify-between items-center"><div className="font-medium">Questions ({questions.length})</div><Button data-testid="cq-add-q" variant="secondary" onClick={addQ}>Add Question</Button></div>{questions.map((q,i)=> (<div key={i} className="p-3 border rounded space-y-2"><Input data-testid={`cq-q-${i}`} placeholder={`Q${i+1} prompt`} value={q.prompt} onChange={(e)=>setQ(i,{prompt:e.target.value})} /><div className="grid sm:grid-cols-2 gap-2">{q.options.map((o,j)=> <Input key={j} data-testid={`cq-q-${i}-opt-${j}`} placeholder={`Option ${j+1}`} value={o} onChange={(e)=>setOpt(i,j,e.target.value)} />)}</div><div className="grid sm:grid-cols-2 gap-2 items-center"><Input data-testid={`cq-q-${i}-topic`} placeholder="Topic" value={q.topic} onChange={(e)=>setQ(i,{topic:e.target.value})} /><Input data-testid={`cq-q-${i}-answer`} placeholder="Correct option index (0-3)" value={q.answer_index} onChange={(e)=>setQ(i,{answer_index: Number(e.target.value)||0})} /></div></div>))}</div><div className="flex justify-end gap-2"><Button data-testid="cq-cancel" variant="secondary" onClick={()=>setOpen(false)}>Cancel</Button><Button data-testid="cq-submit" onClick={submit}>Save</Button></div></CardContent></Card>)}</div>); }
+// ------------------------ THEME TOGGLE ------------------------
+function ThemeToggle() {
+  const [dark, setDark] = useState(false);
 
-function TakeQuiz() { const [quiz, setQuiz] = useState(null); const [answers, setAnswers] = useState({}); const [result, setResult] = useState(null); useEffect(()=>{ const id = window.location.pathname.split("/").pop(); axios.get(`/quizzes/${id}`).then(r=>setQuiz(r.data)); },[]); if(!quiz) return <div className="p-6">Loading...</div>; const select = (qid, idx) => setAnswers({...answers, [qid]: idx}); const submit = async ()=>{ const r = await axios.post(`/quizzes/${quiz.id}/submit`, {answers}); setResult(r.data); toast.success(`+${r.data.new_points} points`); }; return (<div className="max-w-3xl mx-auto p-6 space-y-4" data-testid="take-quiz"><Card><CardHeader><CardTitle>{quiz.title}</CardTitle></CardHeader><CardContent className="space-y-4">{quiz.questions.map((q, i)=> (<div key={q.id} className="p-3 rounded border"><div className="font-medium mb-2">Q{i+1}. {q.prompt}</div><div className="grid gap-2">{q.options.map((opt, idx)=> (<label key={idx} className={`flex items-center gap-2 p-2 rounded border cursor-pointer ${answers[q.id]===idx? 'bg-accent' : ''}`}><input data-testid={`option-${q.id}-${idx}`} type="radio" name={q.id} onChange={()=>select(q.id, idx)} checked={answers[q.id]===idx} /><span>{opt}</span></label>))}</div></div>))}<Button data-testid="submit-quiz" onClick={submit}>Submit</Button></CardContent></Card>{result && (<Card><CardHeader><CardTitle>Results</CardTitle></CardHeader><CardContent className="space-y-2"><div>Score: <b>{result.submission.score}%</b></div><div>Weak Topics: {result.feedback.weak_topics.join(', ') || '—'}</div><div>Badges: {result.badges.join(', ') || '—'}</div></CardContent></Card>)}</div>); }
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", dark);
+  }, [dark]);
 
-function DoubtBoard({ user }) { const [items, setItems] = useState([]); const [title, setTitle] = useState(""); const [body, setBody] = useState(""); const [anon, setAnon] = useState(false); const [page, setPage] = useState(1); const pageSize = 10; const load = ()=> { const params = new URLSearchParams({page:String(page), page_size:String(pageSize)}); axios.get(`/doubts?${params.toString()}`).then(r=>setItems(r.data)); }; useEffect(()=>{ load(); },[page]); const post = async ()=>{ await axios.post(`/doubts`, {title, body, anonymous: anon}); setTitle(""); setBody(""); setAnon(false); setPage(1); load(); toast.success("Posted"); }; const answer = async (id)=>{ const a = prompt("Your answer:"); if(!a) return; await axios.post(`/doubts/${id}/answer`, {title:"", body: a, anonymous:false}); load(); toast.success("Answered"); }; const del = async (id)=>{ if(!window.confirm('Delete doubt?')) return; await axios.delete(`/doubts/${id}`); load(); toast.success('Deleted'); }; return (<div className="max-w-4xl mx-auto p-6 space-y-4">{user?.role==='student' && (<Card><CardHeader><CardTitle>Ask a doubt</CardTitle></CardHeader><CardContent className="space-y-3"><Input data-testid="doubt-title" placeholder="Title" value={title} onChange={(e)=>setTitle(e.target.value)} /><Input data-testid="doubt-body" placeholder="Describe your doubt" value={body} onChange={(e)=>setBody(e.target.value)} /><label className="flex items-center gap-2 text-sm"><input data-testid="doubt-anon" type="checkbox" checked={anon} onChange={(e)=>setAnon(e.target.checked)} /> Post anonymously</label><Button data-testid="doubt-submit" onClick={post}>Post</Button></CardContent></Card>)}<div className="grid gap-3">{items.map(d=> (<Card key={d.id}><CardHeader><CardTitle>{d.title}</CardTitle></CardHeader><CardContent className="space-y-2"><div className="text-sm text-muted-foreground">{new Date(d.created_at).toLocaleString()} · {d.anonymous? 'Anonymous' : d.created_by}</div><div>{d.body}</div>{d.answer? (<div className="p-3 rounded bg-accent">Answer: {d.answer}</div>) : (user?.role!== 'student' ? (<Button data-testid={`answer-${d.id}`} variant="secondary" onClick={()=>answer(d.id)}>Answer</Button>) : null)}{user?.role==='admin' && <Button data-testid={`delete-doubt-${d.id}`} variant="destructive" onClick={()=>del(d.id)}>Delete</Button>}</CardContent></Card>))}</div><div className="flex justify-between items-center"><Button data-testid="doubts-prev" variant="secondary" onClick={()=> setPage(p=> Math.max(1, p-1))}>Prev</Button><div className="text-sm">Page {page}</div><Button data-testid="doubts-next" variant="secondary" onClick={()=> setPage(p=> p+1)}>Next</Button></div></div>); }
+  return (
+    <div className="flex items-center gap-2">
+      <Switch checked={dark} onCheckedChange={setDark} />
+      <span className="text-sm">{dark ? "Dark" : "Light"}</span>
+    </div>
+  );
+}
 
-function Announcements({ user }) { const [items, setItems] = useState([]); const [title, setTitle] = useState(""); const [body, setBody] = useState(""); const [klass, setKlass] = useState(""); const [subject, setSubject] = useState(""); const load = ()=> axios.get(`/announcements`).then(r=>setItems(r.data)); useEffect(()=>{ load(); },[]); const create = async ()=>{ const payload = {title, body, class_grade: klass? Number(klass): null, subject: subject || null}; await axios.post(`/announcements`, payload); setTitle(""); setBody(""); setKlass(""); setSubject(""); load(); toast.success("Posted"); }; return (<div className="max-w-4xl mx-auto p-6 space-y-4">{user?.role==='admin' && (<Card><CardHeader><CardTitle>New Announcement</CardTitle></CardHeader><CardContent className="space-y-3"><Input data-testid="ann-title" placeholder="Title" value={title} onChange={(e)=>setTitle(e.target.value)} /><Input data-testid="ann-body" placeholder="Body" value={body} onChange={(e)=>setBody(e.target.value)} /><div className="grid sm:grid-cols-2 gap-2"><Select value={klass} onValueChange={setKlass}><SelectTrigger data-testid="ann-class"><SelectValue placeholder="Target Class (optional)" /></SelectTrigger><SelectContent><SelectItem value="">All</SelectItem>{CLASSES.map(c=> <SelectItem key={c} value={String(c)}>Class {c}</SelectItem>)}</SelectContent></Select><Select value={subject} onValueChange={setSubject}><SelectTrigger data-testid="ann-subject"><SelectValue placeholder="Subject (optional)" /></SelectTrigger><SelectContent><SelectItem value="">All</SelectItem>{SUBJECTS.map(s=> <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div><Button data-testid="ann-submit" onClick={create}>Publish</Button></CardContent></Card>)}<div className="grid gap-3">{items.map(a=> (<Card key={a.id}><CardHeader><CardTitle>{a.title}</CardTitle></CardHeader><CardContent className="text-sm text-muted-foreground">{new Date(a.created_at).toLocaleString()}</CardContent><CardContent>{a.body}</CardContent></Card>))}</div></div>); }
+// ------------------------ NAVBAR ------------------------
+function Nav({ user, onLogout }) {
+  return (
+    <div className="sticky top-0 z-20 backdrop-blur bg-background/70 border-b">
+      <div className="max-w-6xl mx-auto flex items-center justify-between py-3 px-4">
+        <Link to="/" className="font-semibold tracking-tight">EduPulse</Link>
+        <div className="flex items-center gap-4">
+          <Link to="/announcements" className="text-sm">Announcements</Link>
+          <Link to="/doubts" className="text-sm">Doubt Board</Link>
+          <Link to="/quizzes" className="text-sm">Quizzes</Link>
+          {user?.role === "student" && <Link to="/quizzes-stats" className="text-sm">Stats</Link>}
+          <Link to="/chat" className="text-sm">Chat</Link>
+          <ThemeToggle />
+          {user && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm">{user.name} · {user.role}</span>
+              <Button variant="secondary" onClick={onLogout}>Logout</Button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
-function Chat({ user }) { const [threads, setThreads] = useState([]); const [active, setActive] = useState(null); const [msg, setMsg] = useState(""); const [target, setTarget] = useState(""); const [messages, setMessages] = useState([]); const loadThreads = ()=> axios.get(`/chat/threads`).then(r=>setThreads(r.data)); const open = async (t)=>{ setActive(t); const r = await axios.get(`/chat/messages`, {params:{thread_id:t.id}}); setMessages(r.data); }; const create = async ()=>{ const r = await axios.post(`/chat/threads`, {target_email: target}); setTarget(""); loadThreads(); setActive(r.data); const m = await axios.get(`/chat/messages`, {params:{thread_id: r.data.id}}); setMessages(m.data); toast.success('Thread ready'); }; const send = async ()=>{ if(!msg || !active) return; const r = await axios.post(`/chat/messages`, {thread_id: active.id, body: msg}); setMsg(""); setMessages(prev=> [...prev, r.data]); }; useEffect(()=>{ loadThreads(); },[]); useEffect(()=>{ const iv = setInterval(async ()=>{ if(active){ const m = await axios.get(`/chat/messages`, {params:{thread_id: active.id}}); setMessages(m.data); }}, 2000); return ()=> clearInterval(iv); },[active]); return (<div className="max-w-6xl mx-auto p-6 grid gap-4 sm:grid-cols-3"><Card className="sm:col-span-1"><CardHeader><CardTitle>Threads</CardTitle></CardHeader><CardContent className="space-y-3"><div className="flex gap-2"><Input data-testid="chat-target" placeholder={user.role==='student'? 'Teacher email' : user.role==='teacher'? 'Student/Admin email' : 'Teacher email'} value={target} onChange={(e)=>setTarget(e.target.value)} /><Button data-testid="chat-create" onClick={create}>Start</Button></div><div className="space-y-2">{threads.map(t=> (<Button key={t.id} variant={active?.id===t.id? 'default':'secondary'} className="w-full justify-start" data-testid={`thread-${t.id}`} onClick={()=>open(t)}>{t.type} · {t.participants.map(p=> p.role[0]).join('-')}</Button>))}</div></CardContent></Card><Card className="sm:col-span-2"><CardHeader><CardTitle>Messages</CardTitle></CardHeader><CardContent className="flex flex-col gap-3"><div className="h-96 overflow-auto border rounded p-3 space-y-2" data-testid="chat-messages">{messages.map(m=> (<div key={m.id} className={`max-w-[70%] p-2 rounded ${m.sender_id===user.id? 'bg-primary text-primary-foreground ml-auto':'bg-accent'}`}><div className="text-xs opacity-70">{m.sender_role} · {new Date(m.created_at).toLocaleTimeString()}</div><div>{m.body}</div></div>))}</div><div className="flex gap-2"><Input data-testid="chat-input" placeholder="Type a message" value={msg} onChange={(e)=>setMsg(e.target.value)} /><Button data-testid="chat-send" onClick={send}>Send</Button></div></CardContent></Card></div>); }
+// ------------------------ CONSTANTS ------------------------
+const SUBJECTS = ["Math", "Science", "English", "Social Studies"];
+const CLASSES = Array.from({ length: 12 }, (_, i) => i + 1);
 
-function StudentStats() { const [items, setItems] = useState([]); useEffect(()=>{ axios.get(`/stats/quizzes`).then(r=>setItems(r.data)); },[]); return (<div className="max-w-3xl mx-auto p-6 space-y-3" data-testid="student-stats">{items.map((s,i)=> (<Card key={i}><CardHeader><CardTitle>{s.title}</CardTitle></CardHeader><CardContent className="text-sm text-muted-foreground">{new Date(s.created_at).toLocaleString()}</CardContent><CardContent>Score: {s.score}%</CardContent></Card>))}{!items.length && <div className="text-sm text-muted-foreground">No attempts yet</div>}</div>); }
+// ------------------------ LOGIN COMPONENT ------------------------
+function Login({ setUser }) {
+  const [email, setEmail] = useState("student@school.com");
+  const [password, setPassword] = useState("student123");
+  const [classPick, setClassPick] = useState("");
 
-function TeacherDashboard() { const [data, setData] = useState(null); const [klass, setKlass] = useState(""); const [rows, setRows] = useState([]); useEffect(()=>{ axios.get(`/dashboard/teacher`).then(r=>setData(r.data)); },[]); const load = async ()=>{ const params = new URLSearchParams(); if(klass) params.append('class_grade', klass); const r = await axios.get(`/teacher/students?${params.toString()}`); setRows(r.data); }; useEffect(()=>{ load(); },[klass]); if(!data) return <div className="p-6">Loading...</div>; return (<div data-testid="teacher-dashboard" className="max-w-6xl mx-auto p-6 space-y-6"><div className="grid gap-4 sm:grid-cols-3"><Card><CardHeader><CardTitle>Quizzes Created</CardTitle></CardHeader><CardContent className="text-3xl font-semibold">{data.quizzes_created}</CardContent></Card><Card><CardHeader><CardTitle>Pending Doubts</CardTitle></CardHeader><CardContent className="text-3xl font-semibold">{data.pending_doubts}</CardContent></Card><Card><CardHeader><CardTitle>Class Performance</CardTitle></CardHeader><CardContent className="space-y-1 text-sm">{Object.keys(data.class_performance).length? Object.entries(data.class_performance).map(([k,v])=> <div key={k}>Class {k}: {v}%</div>): 'No data'}</CardContent></Card></div><Card><CardHeader><CardTitle>Student Performance</CardTitle></CardHeader><CardContent className="space-y-3"><div className="grid sm:grid-cols-3 gap-2 items-center"><Select value={klass} onValueChange={setKlass}><SelectTrigger data-testid="tp-class"><SelectValue placeholder="Filter by class" /></SelectTrigger><SelectContent><SelectItem value="">All</SelectItem>{CLASSES.map(c=> <SelectItem key={c} value={String(c)}>Class {c}</SelectItem>)}</SelectContent></Select><Button data-testid="tp-refresh" variant="secondary" onClick={load}>Refresh</Button></div><Table data-testid="teacher-students-table"><TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Attempts</TableHead><TableHead>Avg Score</TableHead><TableHead>Weak Topics</TableHead></TableRow></TableHeader><TableBody>{rows.map(r=> (<TableRow key={r.student_id}><TableCell>{r.name}</TableCell><TableCell className="text-xs">{r.email}</TableCell><TableCell>{r.attempts}</TableCell><TableCell>{r.avg_score}%</TableCell><TableCell className="text-xs">{r.weak_topics.join(', ') || '—'}</TableCell></TableRow>))}</TableBody></Table></CardContent></Card></div>); }
+  const submit = async (e) => {
+    e.preventDefault();
+    try {
+      const fd = new URLSearchParams();
+      fd.append("username", email);
+      fd.append("password", password);
 
-function StudentDashboard() { const [data, setData] = useState(null); useEffect(()=>{ axios.get(`/dashboard/student`).then(r=>setData(r.data)); },[]); if(!data) return <div className="p-6">Loading...</div>; return (<div data-testid="student-dashboard" className="max-w-6xl mx-auto p-6 grid gap-4 sm:grid-cols-3"><Card className="sm:col-span-1"><CardHeader><CardTitle>Overview</CardTitle></CardHeader><CardContent className="space-y-2"><div>Recent Score: <b>{data.recent_score ?? '—'}</b></div><div>Attempted Quizzes: <b>{data.attempted_quizzes}</b></div><div>Points: <b>{data.points}</b></div></CardContent></Card><Card className="sm:col-span-1"><CardHeader><CardTitle>Weak Topics</CardTitle></CardHeader><CardContent>{data.weak_topics.length? (<ul className="list-disc pl-5 space-y-1">{data.weak_topics.map(t=> <li key={t}>{t}</li>)}</ul>): <div className="text-sm text-muted-foreground">No weak topics yet</div>}</CardContent></Card><Card className="sm:col-span-1"><CardHeader><CardTitle>Badges</CardTitle></CardHeader><CardContent className="flex flex-wrap gap-2">{data.badges.length? data.badges.map(b=> <span key={b} className="px-2 py-1 rounded-full bg-accent text-xs" data-testid={`badge-${b}`}>{b}</span>) : <div className="text-sm text-muted-foreground">No badges yet</div>}</CardContent></Card></div>); }
+      const res = await axios.post("/auth/login", fd, {
+        headers: { "Content-Type": "application/x-www-form-urlencoded" }
+      });
 
-function AdminDashboard() { const [data, setData] = useState(null); useEffect(()=>{ axios.get(`/dashboard/admin`).then(r=>setData(r.data)); },[]); if(!data) return <div className="p-6">Loading...</div>; return (<div data-testid="admin-dashboard" className="max-w-6xl mx-auto p-6 grid gap-4 sm:grid-cols-4"><Card><CardHeader><CardTitle>Total Quizzes</CardTitle></CardHeader><CardContent className="text-3xl font-semibold">{data.total_quizzes}</CardContent></Card><Card><CardHeader><CardTitle>Announcements</CardTitle></CardHeader><CardContent className="text-3xl font-semibold">{data.total_announcements}</CardContent></Card><Card><CardHeader><CardTitle>Chat Threads</CardTitle></CardHeader><CardContent className="text-3xl font-semibold">{data.chat_threads}</CardContent></Card><Card><CardHeader><CardTitle>Messages</CardTitle></CardHeader><CardContent className="text-3xl font-semibold">{data.messages}</CardContent></Card></div>); }
+      setAuth(res.data.access_token);
+      let me = (await axios.get("/auth/me")).data;
 
-function Home({ user }) { if(!user) return <Navigate to="/login" replace />; if(user.role==='student') return <StudentDashboard />; if(user.role==='admin') return <AdminDashboard />; return <TeacherDashboard />; }
+      if (me.role === "student" && classPick) {
+        await axios.patch("/users/me", { class_grade: Number(classPick) });
+        me = (await axios.get("/auth/me")).data;
+      }
 
-function App() { const { user, setUser } = useAuth(); const logout = ()=> { setAuth(null); setUser(null); }; useEffect(()=>{ if(user){ toast.success(`Hello, ${user.name}`);} }, [user]); return (<div className="App min-h-screen"><BrowserRouter><Nav user={user} onLogout={logout} /><Routes><Route path="/" element={<Home user={user} />} /><Route path="/login" element={user? <Navigate to="/" replace/> : <Login setUser={setUser} />} /><Route path="/quizzes" element={user? <Quizzes user={user}/> : <Navigate to="/login" replace/>} /><Route path="/quizzes/:id" element={user? <TakeQuiz /> : <Navigate to="/login" replace/>} /><Route path="/quizzes-stats" element={user? <StudentStats /> : <Navigate to="/login" replace/>} /><Route path="/doubts" element={user? <DoubtBoard user={user}/> : <Navigate to="/login" replace/>} /><Route path="/announcements" element={user? <Announcements user={user}/> : <Navigate to="/login" replace/>} /><Route path="/chat" element={user? <Chat user={user}/> : <Navigate to="/login" replace/>} /></Routes></BrowserRouter><Toaster position="top-right" /></div>); }
+      setUser(me);
+      toast.success("Logged in");
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  return (
+    <Card className="max-w-md mx-auto mt-10">
+      <CardHeader><CardTitle>Welcome to EduPulse</CardTitle></CardHeader>
+      <CardContent>
+        <form onSubmit={submit} className="space-y-4">
+          <div>
+            <Label htmlFor="email">Email</Label>
+            <Input id="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </div>
+          <div>
+            <Label htmlFor="password">Password</Label>
+            <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-2 items-end">
+            <div>
+              <Label>Student Class (optional)</Label>
+              <Select value={classPick} onValueChange={setClassPick}>
+                <SelectTrigger><SelectValue placeholder="Select class" /></SelectTrigger>
+                <SelectContent>
+                  {CLASSES.map((c) => <SelectItem key={c} value={String(c)}>Class {c}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="text-xs text-muted-foreground">If student, select class to personalize</div>
+          </div>
+          <Button className="w-full" type="submit">Login</Button>
+        </form>
+        <div className="text-xs text-muted-foreground mt-4">
+          Seed accounts: student@school.com/student123 · teacher@school.com/teacher123 · admin@school.com/admin123
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ------------------------ DASHBOARDS (PLACEHOLDER EXAMPLES) ------------------------
+function Home({ user }) {
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.role === "student") return <div>Student Dashboard</div>;
+  if (user.role === "admin") return <div>Admin Dashboard</div>;
+  return <div>Teacher Dashboard</div>;
+}
+
+// ------------------------ MAIN APP ------------------------
+function App() {
+  const { user, setUser } = useAuth();
+
+  const logout = () => {
+    setAuth(null);
+    setUser(null);
+  };
+
+  useEffect(() => {
+    if (user) toast.success(`Hello, ${user.name}`);
+  }, [user]);
+
+  return (
+    <div className="App min-h-screen">
+      <BrowserRouter>
+        <Nav user={user} onLogout={logout} />
+        <Routes>
+          <Route path="/" element={<Home user={user} />} />
+          <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login setUser={setUser} />} />
+          {/* Add your other routes here */}
+        </Routes>
+      </BrowserRouter>
+      <Toaster position="top-right" />
+    </div>
+  );
+}
 
 export default App;
