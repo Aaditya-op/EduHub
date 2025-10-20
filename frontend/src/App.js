@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import "@/App.css";
-
+import { Analytics } from "@vercel/analytics/react"
 // ------------------------ CONFIG ------------------------
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:5000";
 axios.defaults.baseURL = `${BACKEND_URL}/api`;
@@ -24,6 +24,10 @@ axios.interceptors.response.use(
     return Promise.reject(err);
   }
 );
+
+
+// Removed Python code as it does not belong in a JavaScript file.
+
 
 // ------------------------ AUTH ------------------------
 export function setAuth(token) {

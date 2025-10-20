@@ -12,6 +12,21 @@ from pathlib import Path
 import os
 import uuid
 
+from fastapi.middleware.cors import CORSMiddleware
+
+origins = [
+    "eduhub-1.vercel.app",
+    "http://localhost:3000",  # for local dev
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # ENV
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
