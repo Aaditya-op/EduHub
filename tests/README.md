@@ -1,0 +1,1 @@
+Manual testing guide placeholder. Use app UI to verify auth, dashboards, quizzes, doubts, and announcements.
