@@ -24,6 +24,19 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
 # DB
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
+from motor.motor_asyncio import AsyncIOMotorClient
+import ssl
+
+MONGO_URI = os.getenv("MONGO_URI")
+
+client = AsyncIOMotorClient(
+    MONGO_URI,
+    tls=True,
+    tlsAllowInvalidCertificates=True,  # temporary for Render
+    serverSelectionTimeoutMS=20000,
+)
+db = client["EduHub"]
+
 
 # APP
 app = FastAPI()
