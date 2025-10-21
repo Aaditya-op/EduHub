@@ -12,27 +12,24 @@ from pathlib import Path
 import os
 import uuid
 
-from fastapi.middleware.cors import CORSMiddleware
-
-origins = [
-    "eduhub-1.vercel.app",
-    "http://localhost:3000",  # for local dev
-]
-
+# === CORS & APP SETUP ===
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from pathlib import Path
+from dotenv import load_dotenv
+import os
+import motor.motor_asyncio
 
-app = FastAPI()  # ← You must define this first
+# Allowed origins (frontend URLs)
+origins = [
+    "https://eduhub-frontend.vercel.app",
+    "http://localhost:3000",  # For local development
+]
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Initialize FastAPI app
+app = FastAPI()
 
-
+# Apply CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -41,30 +38,29 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ENV
+# === ENVIRONMENT CONFIG ===
 ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
-MONGO_URL = os.environ['MONGO_URL']
-DB_NAME = os.environ['DB_NAME']
-JWT_SECRET = os.environ.get('JWT_SECRET', 'dev-secret')
-JWT_ALGO = 'HS256'
+load_dotenv(ROOT_DIR / ".env")
+
+MONGO_URL = os.getenv("MONGO_URL")
+DB_NAME = os.getenv("DB_NAME")
+JWT_SECRET = os.getenv("JWT_SECRET", "dev-secret")
+JWT_ALGO = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
 
-# DB
-client = AsyncIOMotorClient(MONGO_URL)
-db = client[DB_NAME]
-from motor.motor_asyncio import AsyncIOMotorClient
-import ssl
+if not MONGO_URL:
+    raise ValueError("❌ Missing MONGO_URL in .env file")
 
-MONGO_URI = os.getenv("MONGO_URI")
+print(f"✅ Using MongoDB URI: {MONGO_URL}")
 
-client = AsyncIOMotorClient(
-    MONGO_URI,
+# === DATABASE CONNECTION ===
+client = motor.motor_asyncio.AsyncIOMotorClient(
+    MONGO_URL,
     tls=True,
-    tlsAllowInvalidCertificates=True,  # temporary for Render
+    tlsAllowInvalidCertificates=True,  # Fix for Windows/Render
     serverSelectionTimeoutMS=20000,
 )
-db = client["EduHub"]
+db = client[DB_NAME]
 
 
 # APP
