@@ -15,18 +15,6 @@ import { Analytics } from '@vercel/analytics/react';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "https://eduhub-ml6u.onrender.com";
 axios.defaults.baseURL = `${BACKEND_URL}/api`;
 
-
-const API_URL = process.env.REACT_APP_API_URL;
-
-// Example
-fetch(`${API_URL}/login`, {
-  method: "POST",
-  body: JSON.stringify({ email, password }),
-  headers: { "Content-Type": "application/json" },
-});
-
-
-
 // Axios global error handling
 axios.interceptors.response.use(
   (response) => response,
