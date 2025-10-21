@@ -38,6 +38,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
 # === ENVIRONMENT CONFIG ===
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
