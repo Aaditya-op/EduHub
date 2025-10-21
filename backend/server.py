@@ -22,7 +22,7 @@ import motor.motor_asyncio
 
 # Allowed origins (frontend URLs)
 origins = [
-    "https://eduhub-frontend.vercel.app",
+    "https://eduhub-1.vercel.app",
     "http://localhost:3000",  # For local development
 ]
 
@@ -74,6 +74,12 @@ except ValueError:
 
 if __name__ == "__main__":
     uvicorn.run("server:app", host="0.0.0.0", port=port, reload=True)
+
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
+
 
 # APP
 app = FastAPI()

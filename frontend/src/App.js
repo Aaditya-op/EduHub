@@ -12,7 +12,7 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@
 import "@/App.css";
 import { Analytics } from '@vercel/analytics/react';
 // ------------------------ CONFIG ------------------------
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:5000";
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "https://eduhub-ml6u.onrender.com";
 axios.defaults.baseURL = `${BACKEND_URL}/api`;
 
 // Axios global error handling
