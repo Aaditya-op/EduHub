@@ -65,10 +65,15 @@ db = client[DB_NAME]
 import os
 import uvicorn
 
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run("server:app", host="0.0.0.0", port=port, reload=True)
+# Get PORT from environment, fallback to 8000 if not set or empty
+port_str = os.environ.get("PORT")
+try:
+    port = int(port_str) if port_str else 8000
+except ValueError:
+    port = 8000
 
+if __name__ == "__main__":
+    uvicorn.run("server:app", host="0.0.0.0", port=port, reload=True)
 
 # APP
 app = FastAPI()
