@@ -29,6 +29,19 @@ origins = [
 # Initialize FastAPI app
 app = FastAPI()
 
+
+import os
+
+port = int(os.environ.get("PORT", 8000))  # keep this
+
+from fastapi import FastAPI
+
+app = FastAPI()
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
+
 # Apply CORS middleware
 app.add_middleware(
     CORSMiddleware,
