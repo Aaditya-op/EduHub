@@ -1,19 +1,19 @@
 import { useEffect, useState } from "react";
-import { BrowserRouter, Routes, Route, Navigate, Link, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Link } from "react-router-dom";
 import axios from "axios";
-import { Toaster, toast } from "@/components/ui/sonner";
-import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
-import "@/App.css";
+import { Toaster, toast } from "./components/ui/sonner";
+import { Button } from "./components/ui/button";
+import { Card, CardHeader, CardTitle, CardContent } from "./components/ui/card";
+import { Input } from "./components/ui/input";
+import { Label } from "./components/ui/label";
+import { Switch } from "./components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/ui/select";
 import { Analytics } from '@vercel/analytics/react';
+import "./App.css";
+
 // ------------------------ CONFIG ------------------------
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8000";
-axios.defaults.baseURL = `${BACKEND_URL}/api`;
+axios.defaults.baseURL = `${BACKEND_URL}/api`; // fixed backticks
 
 // Axios global error handling
 axios.interceptors.response.use(
@@ -24,10 +24,6 @@ axios.interceptors.response.use(
     return Promise.reject(err);
   }
 );
-
-
-// Removed Python code as it does not belong in a JavaScript file.
-
 
 // ------------------------ AUTH ------------------------
 export function setAuth(token) {
@@ -42,7 +38,6 @@ export function setAuth(token) {
 
 export function useAuth() {
   const [user, setUser] = useState(null);
-
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) {
@@ -50,18 +45,15 @@ export function useAuth() {
       axios.get("/auth/me").then((res) => setUser(res.data)).catch(() => setAuth(null));
     }
   }, []);
-
   return { user, setUser };
 }
 
 // ------------------------ THEME TOGGLE ------------------------
 function ThemeToggle() {
   const [dark, setDark] = useState(false);
-
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
   }, [dark]);
-
   return (
     <div className="flex items-center gap-2">
       <Switch checked={dark} onCheckedChange={setDark} />
@@ -111,19 +103,13 @@ function Login({ setUser }) {
       const fd = new URLSearchParams();
       fd.append("username", email);
       fd.append("password", password);
-
-      const res = await axios.post("/auth/login", fd, {
-        headers: { "Content-Type": "application/x-www-form-urlencoded" }
-      });
-
+      const res = await axios.post("/auth/login", fd, { headers: { "Content-Type": "application/x-www-form-urlencoded" } });
       setAuth(res.data.access_token);
       let me = (await axios.get("/auth/me")).data;
-
       if (me.role === "student" && classPick) {
         await axios.patch("/users/me", { class_grade: Number(classPick) });
         me = (await axios.get("/auth/me")).data;
       }
-
       setUser(me);
       toast.success("Logged in");
     } catch (err) {
@@ -166,7 +152,7 @@ function Login({ setUser }) {
   );
 }
 
-// ------------------------ DASHBOARDS (PLACEHOLDER EXAMPLES) ------------------------
+// ------------------------ DASHBOARDS (PLACEHOLDER) ------------------------
 function Home({ user }) {
   if (!user) return <Navigate to="/login" replace />;
   if (user.role === "student") return <div>Student Dashboard</div>;
@@ -177,7 +163,6 @@ function Home({ user }) {
 // ------------------------ MAIN APP ------------------------
 function App() {
   const { user, setUser } = useAuth();
-
   const logout = () => {
     setAuth(null);
     setUser(null);
@@ -194,7 +179,6 @@ function App() {
         <Routes>
           <Route path="/" element={<Home user={user} />} />
           <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login setUser={setUser} />} />
-          {/* Add your other routes here */}
         </Routes>
       </BrowserRouter>
       <Toaster position="top-right" />
